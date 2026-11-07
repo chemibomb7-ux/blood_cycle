@@ -11,14 +11,18 @@
       user-select: none;
       -webkit-user-select: none;
       -webkit-touch-callout: none;
+      box-sizing: border-box;
     }
     html, body {
       overscroll-behavior: none;
       overflow: hidden;
+      width: 100%;
       height: 100%;
       height: 100dvh;
       background-color: #ffeaa7;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Malgun Gothic", sans-serif;
+      margin: 0;
+      padding: 0;
     }
     .pixel-border {
       box-shadow: 3px 3px 0 #000;
@@ -40,223 +44,7 @@
     }
   </style>
 </head>
-<body class="flex flex-col h-full w-full p-1.5 sm:p-3 box-border text-slate-800">
+<body class="flex flex-col h-full w-full p-2 box-border text-slate-800">
 
   <!-- 상단 간이 헤더 -->
-  <header class="flex items-center justify-between bg-white border-2 border-black rounded-lg px-2.5 py-1.5 mb-1.5 shrink-0 pixel-border">
-    <div class="flex items-center gap-2">
-      <span class="text-lg sm:text-xl">🫀</span>
-      <h1 class="text-sm sm:text-base font-black tracking-tight">혈액 순환 스네이크</h1>
-      <span id="cycleBadge" class="bg-red-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm">1단계 (가이드)</span>
-    </div>
-    <div class="flex items-center gap-3 text-xs sm:text-sm font-black">
-      <div class="bg-amber-100 border border-black px-2 py-0.5 rounded">
-        바퀴: <span id="lapCount" class="text-red-600 font-extrabold text-sm sm:text-base">0</span>
-      </div>
-      <div class="bg-blue-100 border border-black px-2 py-0.5 rounded">
-        길이: <span id="snakeLength" class="text-blue-700 font-extrabold text-sm sm:text-base">3</span>
-      </div>
-      <button id="btnRestartTop" class="bg-amber-400 hover:bg-amber-500 text-black border-2 border-black px-2 py-0.5 rounded font-black text-xs pixel-btn">
-        🔄 다시
-      </button>
-    </div>
-  </header>
-
-  <!-- 메인 게임 영역 (모바일: 세로 컬럼 / 태블릿 가로: 가로 2열) -->
-  <main class="flex-1 flex flex-col lg:flex-row gap-2 min-h-0 w-full items-center justify-center">
-    
-    <!-- 캔버스 구역 -->
-    <div class="flex-1 w-full max-w-full flex items-center justify-center min-h-0">
-      <div class="relative bg-black p-1 sm:p-1.5 rounded-xl border-3 border-black pixel-border w-full flex items-center justify-center" style="max-height: 100%; aspect-ratio: 1 / 1; max-width: min(100%, 48vh, 600px);">
-        <canvas id="gameCanvas" width="560" height="560" class="w-full h-full bg-[#1a252f] rounded-lg block"></canvas>
-      </div>
-    </div>
-
-    <!-- 컨트롤 & 정보 패널 (모바일: 하단 / 태블릿: 우측) -->
-    <div class="w-full lg:w-80 shrink-0 flex flex-col justify-between gap-1.5 sm:gap-2 h-auto lg:h-full">
-      
-      <!-- 다음 목적지 & 순환 로드맵 카드 -->
-      <section class="bg-white border-2 border-black rounded-lg p-2 pixel-border">
-        <div class="flex items-center justify-between border-b-2 border-dashed border-slate-300 pb-1 mb-1.5">
-          <span class="text-[11px] font-black text-slate-500">🎯 이번에 먹을 기관</span>
-          <span id="targetName" class="text-base sm:text-lg font-black text-rose-600 tracking-tight">좌심실</span>
-        </div>
-
-        <!-- 온몸순환 (5단계) -->
-        <div class="mb-1.5">
-          <div class="text-[10px] font-black text-blue-700 mb-0.5 flex items-center gap-1">
-            <span>🔵</span> 온몸순환 (좌심실 ➔ 우심방)
-          </div>
-          <div class="grid grid-cols-5 gap-0.5 text-center" id="systemicRow">
-            <div data-step="0" class="border border-slate-400 rounded py-0.5 text-[9px] font-bold bg-slate-50 truncate">좌심실</div>
-            <div data-step="1" class="border border-slate-400 rounded py-0.5 text-[9px] font-bold bg-slate-50 truncate">대동맥</div>
-            <div data-step="2" class="border border-slate-400 rounded py-0.5 text-[9px] font-bold bg-slate-50 truncate">온몸모세</div>
-            <div data-step="3" class="border border-slate-400 rounded py-0.5 text-[9px] font-bold bg-slate-50 truncate">대정맥</div>
-            <div data-step="4" class="border border-slate-400 rounded py-0.5 text-[9px] font-bold bg-slate-50 truncate">우심방</div>
-          </div>
-        </div>
-
-        <!-- 허파순환 (5단계) -->
-        <div>
-          <div class="text-[10px] font-black text-red-600 mb-0.5 flex items-center gap-1">
-            <span>🔴</span> 허파순환 (우심실 ➔ 좌심방)
-          </div>
-          <div class="grid grid-cols-5 gap-0.5 text-center" id="pulmonaryRow">
-            <div data-step="5" class="border border-slate-400 rounded py-0.5 text-[9px] font-bold bg-slate-50 truncate">우심실</div>
-            <div data-step="6" class="border border-slate-400 rounded py-0.5 text-[9px] font-bold bg-slate-50 truncate">폐동맥</div>
-            <div data-step="7" class="border border-slate-400 rounded py-0.5 text-[9px] font-bold bg-slate-50 truncate">폐모세</div>
-            <div data-step="8" class="border border-slate-400 rounded py-0.5 text-[9px] font-bold bg-slate-50 truncate">폐정맥</div>
-            <div data-step="9" class="border border-slate-400 rounded py-0.5 text-[9px] font-bold bg-slate-50 truncate">좌심방</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 가상 십자 D-Pad 컨트롤러 -->
-      <section class="flex flex-col items-center justify-center p-1">
-        <div class="grid grid-cols-3 gap-1.5 sm:gap-2 w-52 sm:w-60">
-          <div></div>
-          <button id="btnUp" class="dpad-btn h-12 sm:h-14 bg-slate-800 text-white text-2xl font-black rounded-lg border-2 border-black pixel-btn flex items-center justify-center active:bg-slate-700">▲</button>
-          <div></div>
-          <button id="btnLeft" class="dpad-btn h-12 sm:h-14 bg-slate-800 text-white text-2xl font-black rounded-lg border-2 border-black pixel-btn flex items-center justify-center active:bg-slate-700">◀</button>
-          <div class="flex items-center justify-center text-slate-400 font-black text-sm">✚</div>
-          <button id="btnRight" class="dpad-btn h-12 sm:h-14 bg-slate-800 text-white text-2xl font-black rounded-lg border-2 border-black pixel-btn flex items-center justify-center active:bg-slate-700">▶</button>
-          <div></div>
-          <button id="btnDown" class="dpad-btn h-12 sm:h-14 bg-slate-800 text-white text-2xl font-black rounded-lg border-2 border-black pixel-btn flex items-center justify-center active:bg-slate-700">▼</button>
-          <div></div>
-        </div>
-      </section>
-
-    </div>
-  </main>
-
-  <!-- 게임 오버 및 구글 스프레드시트 제출 모달 -->
-  <div id="gameOverModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-white border-3 border-black rounded-2xl p-4 sm:p-6 w-full max-w-sm pixel-border flex flex-col gap-3">
-      <div class="text-center">
-        <div class="text-4xl mb-1">💥</div>
-        <h2 class="text-xl sm:text-2xl font-black text-slate-900">순환 실패!</h2>
-        <p id="deathReason" class="text-xs sm:text-sm font-bold text-red-600 mt-1">잘못된 기관을 섭취했습니다.</p>
-      </div>
-
-      <div class="bg-slate-100 border-2 border-black rounded-xl p-3 flex justify-around text-center font-black">
-        <div>
-          <div class="text-[11px] text-slate-500">완주 바퀴</div>
-          <div id="modalLap" class="text-xl text-red-600">0</div>
-        </div>
-        <div class="border-r border-slate-300"></div>
-        <div>
-          <div class="text-[11px] text-slate-500">최종 뱀 길이</div>
-          <div id="modalLen" class="text-xl text-blue-600">3</div>
-        </div>
-      </div>
-
-      <!-- 시트 전송 입력창 -->
-      <div class="flex flex-col gap-1.5 mt-1">
-        <label for="studentName" class="text-xs font-black text-slate-700">학번과 이름을 입력하세요:</label>
-        <input type="text" id="studentName" placeholder="예: 2학년 3반 홍길동" class="border-2 border-black rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400">
-        <button id="btnSubmitRecord" class="bg-emerald-500 hover:bg-emerald-600 text-white font-black py-2 rounded-lg border-2 border-black pixel-btn text-sm flex items-center justify-center gap-1.5">
-          <span>🚀 스프레드시트로 기록 제출</span>
-        </button>
-        <p id="submitStatus" class="text-center text-[11px] font-bold min-h-[16px] text-slate-500"></p>
-      </div>
-
-      <button id="btnModalRestart" class="bg-amber-400 hover:bg-amber-500 text-black font-black py-2 rounded-lg border-2 border-black pixel-btn text-sm mt-1">
-        🔄 다시 도전하기
-      </button>
-    </div>
-  </div>
-
-  <script>
-    // --- 설정 및 상수 ---
-    const TARGET_SHEET_URL = "https://script.google.com/macros/s/AKfycbzKMMmOj1tp9koRubVUZWKgc-3NUFHWqAi3gR2xKy4ZMkjZZCPrIpbok_isRYMIGyNM/exec";
-    
-    const GRID_SIZE = 14;
-    const MOVE_INTERVAL = 190; // 190ms
-
-    // 10단계 표준 순환 순서
-    const SEQUENCE = [
-      { name: "좌심실", short: "좌심실", system: "온몸", color: "#3b82f6" },
-      { name: "대동맥", short: "대동맥", system: "온몸", color: "#60a5fa" },
-      { name: "온몸의 모세혈관", short: "온몸모세", system: "온몸", color: "#93c5fd" },
-      { name: "대정맥", short: "대정맥", system: "온몸", color: "#38bdf8" },
-      { name: "우심방", short: "우심방", system: "온몸", color: "#0ea5e9" },
-      { name: "우심실", short: "우심실", system: "허파", color: "#ef4444" },
-      { name: "폐동맥", short: "폐동맥", system: "허파", color: "#f87171" },
-      { name: "폐의 모세혈관", short: "폐모세", system: "허파", color: "#fca5a5" },
-      { name: "폐정맥", short: "폐정맥", system: "허파", color: "#fb7185" },
-      { name: "좌심방", short: "좌심방", system: "허파", color: "#e11d48" }
-    ];
-
-    // --- 게임 상태 ---
-    let snake = [];
-    let direction = { x: 1, y: 0 };
-    let inputQueue = [];
-    let stepIndex = 0;
-    let laps = 0;
-    let isGameOver = false;
-    let lastMoveTime = 0;
-
-    let correctFruit = null;
-    let wrongFruit = null;
-
-    // --- DOM 요소 ---
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const lapCountEl = document.getElementById("lapCount");
-    const snakeLengthEl = document.getElementById("snakeLength");
-    const targetNameEl = document.getElementById("targetName");
-    const cycleBadgeEl = document.getElementById("cycleBadge");
-
-    const modal = document.getElementById("gameOverModal");
-    const deathReasonEl = document.getElementById("deathReason");
-    const modalLapEl = document.getElementById("modalLap");
-    const modalLenEl = document.getElementById("modalLen");
-    const studentNameInput = document.getElementById("studentName");
-    const btnSubmitRecord = document.getElementById("btnSubmitRecord");
-    const submitStatusEl = document.getElementById("submitStatus");
-
-    // 저장된 이름 불러오기
-    if (localStorage.getItem("lastStudentName")) {
-      studentNameInput.value = localStorage.getItem("lastStudentName");
-    }
-
-    // --- 게임 초기화 ---
-    function initGame() {
-      snake = [
-        { x: 5, y: 7, label: "출발" },
-        { x: 4, y: 7, label: "" },
-        { x: 3, y: 7, label: "" }
-      ];
-      direction = { x: 1, y: 0 };
-      inputQueue = [];
-      stepIndex = 0;
-      laps = 0;
-      isGameOver = false;
-      lastMoveTime = performance.now();
-
-      modal.classList.add("hidden");
-      submitStatusEl.textContent = "";
-      btnSubmitRecord.disabled = false;
-
-      spawnFruits();
-      updateDashboard();
-      requestAnimationFrame(gameLoop);
-    }
-
-    // 열매 2개 동시 스폰 (정답 1 + 오답 1)
-    function spawnFruits() {
-      const correctTarget = SEQUENCE[stepIndex];
-      let wrongCandidates = SEQUENCE.filter((_, idx) => idx !== stepIndex);
-      const wrongTarget = wrongCandidates[Math.floor(Math.random() * wrongCandidates.length)];
-
-      const pos1 = getEmptyGridPosition();
-      correctFruit = { ...pos1, ...correctTarget, isCorrect: true };
-
-      const pos2 = getEmptyGridPosition([pos1]);
-      wrongFruit = { ...pos2, ...wrongTarget, isCorrect: false };
-    }
-
-    function getEmptyGridPosition(excludePositions = []) {
-      const occupied = new Set();
-      snake.forEach(seg => occupied.add(`${seg.x},${seg.y}`));
-      excludePositions.forEach(p => occupied.add(`${p.x},${p
+  <header class="flex items-center justify-
