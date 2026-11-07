@@ -1,1 +1,910 @@
-# blood_cycle
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>혈액순환 뱀게임 (태블릿 가로 뷰)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap');
+        
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            font-family: 'Gaegu', 'Gulim', 'Malgun Gothic', cursive, sans-serif;
+            touch-action: manipulation;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            height: 100dvh;
+            overflow: hidden;
+            overscroll-behavior: none;
+            -webkit-overflow-scrolling: auto;
+            background: #ffeaa7;
+        }
+
+        /* 크레파스/그림판 풍 테두리 & 버튼 */
+        .paint-panel {
+            background: #ffffff;
+            border: 4px solid #000000;
+            box-shadow: 6px 6px 0px #000000;
+        }
+
+        .paint-btn {
+            background: #ffffff;
+            border: 3px solid #000000;
+            box-shadow: 3px 3px 0px #000000;
+            cursor: pointer;
+            transition: transform 0.05s, box-shadow 0.05s;
+        }
+
+        .paint-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0px #000000;
+            background: #ffff99;
+        }
+
+        .canvas-frame {
+            border: 5px solid #000000;
+            box-shadow: 6px 6px 0px rgba(0,0,0,0.4);
+            background: #ffffff;
+        }
+    </style>
+</head>
+<body class="w-full h-full p-2 sm:p-3 flex flex-col overflow-hidden">
+
+    <!-- 태블릿 가로 2열 메인 레이아웃 (스크롤 절대 없음) -->
+    <div class="paint-panel w-full h-full flex flex-col p-2 sm:p-3 overflow-hidden">
+        
+        <!-- 상단 헤더: 실시간 순환 정보 요약 -->
+        <header class="flex-none flex items-center justify-between pb-2 border-b-2 border-black gap-2">
+            <div class="flex items-center gap-2">
+                <span class="text-3xl">🩸</span>
+                <span class="font-black text-xl sm:text-2xl text-black tracking-tight">혈액순환 적혈구 챌린지</span>
+                <div id="bloodStateTag" class="px-3 py-1 bg-[#ff1a40] text-white border-2 border-black rotate-[-2deg] font-bold text-sm sm:text-base">
+                    동맥혈 (선홍색 / O₂)
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <div class="px-2.5 py-1 border-2 border-black font-black text-sm sm:text-base bg-yellow-100">
+                    순환: <span id="lapCountText" class="text-blue-700 text-lg">0</span>회
+                </div>
+                <div class="px-2.5 py-1 border-2 border-black font-black text-sm sm:text-base bg-yellow-100">
+                    길이: <span id="snakeLengthText" class="text-red-600 text-lg">3</span>
+                </div>
+                <button id="restartHeaderBtn" class="paint-btn px-3 py-1 text-sm font-bold bg-pink-100 hover:bg-pink-200 text-red-700">
+                    🔄 다시 시작
+                </button>
+                <button id="soundToggle" class="paint-btn px-3 py-1 text-sm font-bold">
+                    🔊 소리 ON
+                </button>
+                <button id="pauseBtn" class="paint-btn px-3 py-1 text-sm font-bold">
+                    ⏸ 일시정지
+                </button>
+            </div>
+        </header>
+
+        <!-- 중단 콘텐츠: 좌측(대형 캔버스 75%) + 우측(설명 패널 및 키패드 25%) -->
+        <main class="flex-1 flex flex-row items-center justify-between gap-3 min-h-0 pt-2 overflow-hidden">
+            
+            <!-- 좌측: 대형 정사각형 캔버스 뷰포트 (화면의 약 75% 비중) -->
+            <div class="h-full flex-[3] flex items-center justify-center relative min-w-0">
+                <canvas id="snakeCanvas" width="630" height="630" class="canvas-frame max-h-full max-w-full aspect-square object-contain"></canvas>
+
+                <!-- 시작/게임오버 오버레이 모달 -->
+                <div id="modalOverlay" class="absolute inset-0 bg-black/75 backdrop-blur-[2px] flex items-center justify-center p-3 z-20">
+                    <div class="paint-panel max-w-md w-full p-4 sm:p-5 text-center bg-[#ffffd0] border-4 border-black max-h-[92vh] overflow-y-auto">
+                        <div id="modalMemeFace" class="text-4xl sm:text-5xl mb-1">🩸🤪</div>
+                        <h2 id="modalTitle" class="text-xl sm:text-2xl font-black text-red-600 mb-1 underline decoration-wavy">
+                            혈액순환 챌린지
+                        </h2>
+
+                        <!-- 오답 피드백 알림 박스 -->
+                        <div id="modalFeedbackBox" class="hidden mb-2 p-2.5 bg-red-100 border-2 border-red-600 text-left text-xs sm:text-sm font-bold leading-normal">
+                            <!-- JS 내용 주입 -->
+                        </div>
+
+                        <p id="modalDesc" class="text-xs sm:text-sm font-bold leading-normal mb-3 text-gray-800">
+                            온몸순환과 허파순환 경로에 맞게 올바른 열매를 드세요!<br>
+                            틀린 곳을 먹으면 즉시 심정지로 끝납니다!
+                        </p>
+
+                        <!-- 스프레드시트 기록 전송 폼 (게임오버 시 활성화) -->
+                        <div id="submitRecordSection" class="hidden my-2.5 p-2.5 bg-blue-50 border-2 border-blue-600 text-left rounded">
+                            <label class="block text-xs font-black text-blue-900 mb-1">📝 학생 이름 / 학번 입력:</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="playerNameInput" placeholder="예: 2학년3반 홍길동" class="flex-1 px-2 py-1.5 border-2 border-black font-bold text-sm bg-white" maxlength="20">
+                                <button id="submitRecordBtn" class="paint-btn px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white font-black text-sm">
+                                    기록 전송 🚀
+                                </button>
+                            </div>
+                            <div id="submitStatusText" class="text-xs font-bold mt-1 text-gray-600"></div>
+                        </div>
+
+                        <button id="startBtn" class="paint-btn w-full py-2.5 sm:py-3 text-base sm:text-lg font-black bg-[#33ff66] hover:bg-[#22ee55]">
+                            순환 시작하기 (터치 / Space)
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 우측: 대형 순환 경로 플로우차트 보드 + 하단 독립 십자키패드 (약 25% 비중) -->
+            <div class="flex-1 h-full flex flex-col justify-between items-center py-0.5 gap-2 min-w-[250px] max-w-[340px] overflow-hidden">
+                
+                <!-- 상단~중앙: 순환 경로 및 다음 목적지 대형 대시보드 (글자 크기 대폭 확대) -->
+                <div class="w-full flex-1 bg-[#fffdf0] border-3 border-black p-3 rounded flex flex-col justify-between shadow-[3px_3px_0px_#000] overflow-hidden">
+                    
+                    <!-- 이번 목표 강조 배너 -->
+                    <div class="flex flex-col items-center justify-center text-center pb-2 border-b-2 border-dashed border-gray-400">
+                        <div class="text-base font-black text-gray-800">★ 찾아갈 다음 목적지 ★</div>
+                        <div id="targetHintLabel" class="text-3xl sm:text-4xl text-red-600 font-black tracking-wide my-1 underline decoration-wavy">
+                            대동맥
+                        </div>
+                        <div id="guideModeComment" class="text-sm sm:text-base font-black text-blue-900 leading-snug">
+                            좌심실에서 출발하여 동맥을 통해 전신으로 나아갑니다!
+                        </div>
+                    </div>
+
+                    <!-- 9단계 전체 순환 로드맵 시각화 (온몸순환 / 허파순환 구역) -->
+                    <div id="circulationMapArea" class="flex-1 flex flex-col justify-center gap-2.5 my-1">
+                        
+                        <!-- 온몸순환 구역: 좌심실 ~ 우심방 (5단계) -->
+                        <div class="bg-red-50 border-2 border-black p-2 rounded">
+                            <div class="flex items-center justify-between text-sm sm:text-base font-black text-red-800 mb-1 border-b border-red-300 pb-0.5">
+                                <span>[온몸순환: 좌심실 ~ 우심방]</span>
+                                <span class="text-xs bg-red-200 px-2 py-0.5 rounded text-red-900 font-bold">산소 공급</span>
+                            </div>
+                            <div class="grid grid-cols-5 gap-1 text-center font-black text-xs sm:text-sm" id="systemicStepBoxes">
+                                <div data-step="0" class="step-card p-1 border border-black bg-white rounded">1.좌심실</div>
+                                <div data-step="1" class="step-card p-1 border border-black bg-white rounded">2.대동맥</div>
+                                <div data-step="2" class="step-card p-1 border border-black bg-white rounded leading-tight">3.온몸<br>모세</div>
+                                <div data-step="3" class="step-card p-1 border border-black bg-white rounded">4.대정맥</div>
+                                <div data-step="4" class="step-card p-1 border border-black bg-white rounded">5.우심방</div>
+                            </div>
+                        </div>
+
+                        <!-- 허파순환 구역: 우심실 ~ 좌심방 (5단계) -->
+                        <div class="bg-blue-50 border-2 border-black p-2 rounded">
+                            <div class="flex items-center justify-between text-sm sm:text-base font-black text-blue-800 mb-1 border-b border-blue-300 pb-0.5">
+                                <span>[허파순환: 우심실 ~ 좌심방]</span>
+                                <span class="text-xs bg-blue-200 px-2 py-0.5 rounded text-blue-900 font-bold">산소 충전</span>
+                            </div>
+                            <div class="grid grid-cols-5 gap-1 text-center font-black text-xs sm:text-sm" id="pulmonaryStepBoxes">
+                                <div data-step="5" class="step-card p-1 border border-black bg-white rounded">6.우심실</div>
+                                <div data-step="6" class="step-card p-1 border border-black bg-white rounded">7.폐동맥</div>
+                                <div data-step="7" class="step-card p-1 border border-black bg-white rounded leading-tight">8.폐의<br>모세</div>
+                                <div data-step="8" class="step-card p-1 border border-black bg-white rounded">9.폐정맥</div>
+                                <div data-step="9" class="step-card p-1 border border-black bg-white rounded">10.좌심방</div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- 암기 모드 콤팩트 배너 (설명을 가리지 않고 상단 코멘트에 배치) -->
+                    <div id="blindModeNotice" class="hidden text-center text-xs sm:text-sm font-black text-purple-900 bg-purple-100 border-2 border-purple-600 py-1 px-2 rounded my-0.5">
+                        🧠 2회차 암기 모드: 다음 목적지 힌트 효과가 꺼졌습니다!
+                    </div>
+                </div>
+
+                <!-- 우측 하단 중앙: 순수 십자형 대형 가상 D-Pad -->
+                <div class="flex-none w-full flex flex-col items-center justify-center pt-1 pb-0.5">
+                    <div class="inline-grid grid-cols-3 grid-rows-3 gap-2 p-1.5 bg-gray-100 border-2 border-black rounded-lg shadow-[2px_2px_0px_#000]">
+                        <!-- row 1 -->
+                        <div></div>
+                        <button id="btnUp" class="paint-btn w-16 h-14 sm:w-20 sm:h-16 text-2xl sm:text-3xl font-black flex items-center justify-center bg-white active:bg-yellow-200">
+                            ▲
+                        </button>
+                        <div></div>
+
+                        <!-- row 2 -->
+                        <button id="btnLeft" class="paint-btn w-16 h-14 sm:w-20 sm:h-16 text-2xl sm:text-3xl font-black flex items-center justify-center bg-white active:bg-yellow-200">
+                            ◀
+                        </button>
+                        <!-- 중앙 빈 공간 -->
+                        <div class="w-16 h-14 sm:w-20 sm:h-16 flex items-center justify-center font-bold text-gray-300 text-xl">
+                            ✚
+                        </div>
+                        <button id="btnRight" class="paint-btn w-16 h-14 sm:w-20 sm:h-16 text-2xl sm:text-3xl font-black flex items-center justify-center bg-white active:bg-yellow-200">
+                            ▶
+                        </button>
+
+                        <!-- row 3 -->
+                        <div></div>
+                        <button id="btnDown" class="paint-btn w-16 h-14 sm:w-20 sm:h-16 text-2xl sm:text-3xl font-black flex items-center justify-center bg-white active:bg-yellow-200">
+                            ▼
+                        </button>
+                        <div></div>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        // --- 쌈마이 8-bit 사운드 합성기 (Web Audio API) ---
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            playBeep(freq, type = 'square', dur = 0.08, vol = 0.15) {
+                if (!this.enabled || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, now);
+                gain.gain.setValueAtTime(vol, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + dur);
+            }
+            playEat() {
+                if (!this.enabled || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(260, now);
+                osc.frequency.linearRampToValueAtTime(820, now + 0.12);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            }
+            playHeartbeat() {
+                this.playBeep(90, 'triangle', 0.08, 0.25);
+                setTimeout(() => this.playBeep(120, 'triangle', 0.08, 0.2), 120);
+            }
+            playDie() {
+                if (!this.enabled || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(350, now);
+                osc.frequency.linearRampToValueAtTime(50, now + 0.35);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            }
+        }
+        const sfx = new SoundFX();
+        // --- 10단계 순환 공식 데이터 (폐정맥 ➔ 좌심방 ➔ 좌심실 연결) ---
+        const CIRCULATION_STEPS = [
+            { id: 0, name: "좌심실", isArtery: true },
+            { id: 1, name: "대동맥", isArtery: true },
+            { id: 2, name: "온몸의 모세혈관", isArtery: false },
+            { id: 3, name: "대정맥", isArtery: false },
+            { id: 4, name: "우심방", isArtery: false },
+            { id: 5, name: "우심실", isArtery: false },
+            { id: 6, name: "폐동맥", isArtery: false },
+            { id: 7, name: "폐의 모세혈관", isArtery: true },
+            { id: 8, name: "폐정맥", isArtery: true },
+            { id: 9, name: "좌심방", isArtery: true }
+        ];
+        // --- 캔버스 및 게임 세팅 (14x14 그리드, 45px = 630px 대화면) ---
+        const canvas = document.getElementById('snakeCanvas');
+        const ctx = canvas.getContext('2d');
+        const GRID_SIZE = 14;
+        const CELL_SIZE = 45; // 14 * 45 = 630px 고해상도 대화면
+
+        // DOM 요소들
+        const lapCountText = document.getElementById('lapCountText');
+        const snakeLengthText = document.getElementById('snakeLengthText');
+        const targetHintLabel = document.getElementById('targetHintLabel');
+        const guideModeComment = document.getElementById('guideModeComment');
+        const bloodStateTag = document.getElementById('bloodStateTag');
+        const modalOverlay = document.getElementById('modalOverlay');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalDesc = document.getElementById('modalDesc');
+        const modalMemeFace = document.getElementById('modalMemeFace');
+        const modalFeedbackBox = document.getElementById('modalFeedbackBox');
+        const startBtn = document.getElementById('startBtn');
+        const soundToggle = document.getElementById('soundToggle');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const restartHeaderBtn = document.getElementById('restartHeaderBtn');
+        const circulationMapArea = document.getElementById('circulationMapArea');
+        const blindModeNotice = document.getElementById('blindModeNotice');
+
+        let snake = [];
+        let currentStepIndex = 0;
+        let laps = 0;
+        let isRunning = false;
+        let isPaused = false;
+
+        // 키보드 지연 없는 입력 큐(Queue)
+        let inputQueue = [];
+        let currentDir = { x: 1, y: 0 };
+        let lastMoveTime = 0;
+        const moveInterval = 190; // 사용자 피드백 반영: 190ms로 변경
+
+        let correctTarget = null;
+        let wrongTarget = null;
+        let lastDeathReason = "정상 시작";
+
+        // 구글 시트 연동 URL (고정 바인딩)
+        const TARGET_SHEET_URL = "https://script.google.com/macros/s/AKfycbzKMMmOj1tp9koRubVUZWKgc-3NUFHWqAi3gR2xKy4ZMkjZZCPrIpbok_isRYMIGyNM/exec";
+
+        const submitRecordSection = document.getElementById('submitRecordSection');
+        const playerNameInput = document.getElementById('playerNameInput');
+        const submitRecordBtn = document.getElementById('submitRecordBtn');
+        const submitStatusText = document.getElementById('submitStatusText');
+
+        // --- 스폰 함수 (정답 1개 + 오답 1개 보장) ---
+        function getAvailableEmptyCells() {
+            const occupied = new Set();
+            snake.forEach(seg => occupied.add(`${seg.x},${seg.y}`));
+
+            const pool = [];
+            for (let x = 0; x < GRID_SIZE; x++) {
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    if (!occupied.has(`${x},${y}`)) {
+                        pool.push({ x, y });
+                    }
+                }
+            }
+
+            for (let i = pool.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [pool[i], pool[j]] = [pool[j], pool[i]];
+            }
+            return pool.slice(0, 2);
+        }
+
+        function spawnTargets() {
+            const nextIdx = (currentStepIndex + 1) % CIRCULATION_STEPS.length;
+            const correctStep = CIRCULATION_STEPS[nextIdx];
+
+            // 나머지 중 오답 1개 선택
+            const wrongCandidates = CIRCULATION_STEPS.filter(s => s.id !== correctStep.id);
+            const wrongStep = wrongCandidates[Math.floor(Math.random() * wrongCandidates.length)];
+
+            const cells = getAvailableEmptyCells();
+            if (cells.length >= 2) {
+                correctTarget = { x: cells[0].x, y: cells[0].y, step: correctStep, isCorrect: true };
+                wrongTarget = { x: cells[1].x, y: cells[1].y, step: wrongStep, isCorrect: false };
+            } else if (cells.length === 1) {
+                correctTarget = { x: cells[0].x, y: cells[0].y, step: correctStep, isCorrect: true };
+                wrongTarget = null;
+            }
+        }
+
+        // --- UI 상태 업데이트 ---
+        function updateUIState() {
+            const nextIdx = (currentStepIndex + 1) % CIRCULATION_STEPS.length;
+            const nextStep = CIRCULATION_STEPS[nextIdx];
+            const currentStep = CIRCULATION_STEPS[currentStepIndex];
+
+            // 1사이클 완주 시: 설명 로드맵은 유지하되, 하이라이트/펄스 효과와 텍스트 힌트만 차단
+            if (laps >= 1) {
+                targetHintLabel.textContent = "???";
+                targetHintLabel.className = "text-3xl sm:text-4xl text-purple-700 font-black";
+                guideModeComment.textContent = `현재 위치: [${currentStep.name}] | 다음 순서를 스스로 기억해서 찾으세요!`;
+                blindModeNotice.classList.remove('hidden');
+
+                // 모든 순환 카드의 하이라이트/애니메이션 효과 제거 (정적 상태로 유지)
+                document.querySelectorAll('.step-card').forEach(card => {
+                    card.className = "step-card p-1 border border-black bg-white text-gray-800 font-bold text-xs sm:text-sm";
+                });
+            } else {
+                targetHintLabel.textContent = nextStep.name;
+                targetHintLabel.className = "text-3xl sm:text-4xl text-red-600 font-black underline decoration-wavy";
+                guideModeComment.textContent = `현재: [${currentStep.name}] ➔ 다음: [${nextStep.name}] 먹으러 이동!`;
+                blindModeNotice.classList.add('hidden');
+
+                // 1회차: 9단계 로드맵 카드 하이라이트 & 바운스 펄스 작동
+                document.querySelectorAll('.step-card').forEach(card => {
+                    const stepId = parseInt(card.getAttribute('data-step'), 10);
+                    if (stepId === currentStepIndex) {
+                        // 현재 머리 위치
+                        card.className = "step-card p-1 border-2 border-black bg-yellow-300 text-black font-black scale-105 shadow text-xs sm:text-sm";
+                    } else if (stepId === nextIdx) {
+                        // 찾아가야 할 다음 목적지
+                        card.className = "step-card p-1 border-2 border-red-600 bg-red-100 text-red-700 font-black animate-bounce shadow text-xs sm:text-sm";
+                    } else {
+                        // 일반 단계
+                        card.className = "step-card p-1 border border-black bg-white text-gray-700 font-bold text-xs sm:text-sm";
+                    }
+                });
+            }
+
+            // 동맥혈 / 정맥혈 뱃지
+            if (currentStep.isArtery) {
+                bloodStateTag.textContent = "동맥혈 (선홍색 / O₂ 빵빵)";
+                bloodStateTag.className = "px-3 py-1 bg-[#ff1a40] text-white border-2 border-black rotate-[-2deg] shadow text-sm sm:text-base font-black";
+            } else {
+                bloodStateTag.textContent = "정맥혈 (암적색 / 산소 방전)";
+                bloodStateTag.className = "px-3 py-1 bg-[#4a152d] text-yellow-300 border-2 border-black rotate-[2deg] shadow text-sm sm:text-base font-black";
+            }
+
+            lapCountText.textContent = laps;
+            snakeLengthText.textContent = snake.length;
+        }
+
+        // --- 게임 리셋 / 시작 ---
+        function resetGame() {
+            sfx.init();
+            currentStepIndex = 0; // 좌심실 출발
+            laps = 0;
+            inputQueue = [];
+            currentDir = { x: 1, y: 0 };
+
+            // 14x14 중앙 스폰
+            snake = [
+                { x: 5, y: 7 },
+                { x: 4, y: 7 },
+                { x: 3, y: 7 }
+            ];
+
+            spawnTargets();
+            updateUIState();
+
+            modalOverlay.classList.add('hidden');
+            modalFeedbackBox.classList.add('hidden');
+            isRunning = true;
+            isPaused = false;
+            pauseBtn.textContent = "⏸ 일시정지";
+            lastMoveTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- 게임 오버 ---
+        function gameOver(title, desc, wrongStep = null) {
+            isRunning = false;
+            sfx.playDie();
+            lastDeathReason = title;
+
+            modalMemeFace.textContent = "💥😵‍💫💥";
+            modalTitle.textContent = title;
+
+            if (wrongStep) {
+                const current = CIRCULATION_STEPS[currentStepIndex];
+                const correct = CIRCULATION_STEPS[(currentStepIndex + 1) % CIRCULATION_STEPS.length];
+                lastDeathReason = `${title} (${wrongStep.name} 오답)`;
+
+                modalFeedbackBox.classList.remove('hidden');
+                modalFeedbackBox.innerHTML = `
+                    <div class="text-red-700 font-black mb-1">🚨 [혈액 역주행 사망] 엉뚱한 장기로 들어갔습니다!</div>
+                    <div>현재 머리 위치: <b class="text-black">${current.name}</b></div>
+                    <div>먹은 오답 장기: <b class="text-red-600 line-through">${wrongStep.name}</b> (틀림!)</div>
+                    <div class="mt-1 text-blue-700 font-black">원래 가야 할 곳: ➔ [${correct.name}]</div>
+                `;
+            } else {
+                modalFeedbackBox.classList.add('hidden');
+            }
+
+            modalDesc.innerHTML = `${desc}<br><span class="text-black font-black text-sm block mt-2 bg-yellow-200 border border-black p-1.5">최종 기록: ${laps}바퀴 완주 | 길이: ${snake.length}</span>`;
+            
+            // 시트 Web App URL이 기본 내장되어 있으므로 상시 전송 폼 노출
+            submitRecordSection.classList.remove('hidden');
+            submitStatusText.textContent = "이름을 적고 전송 버튼을 누르면 선생님 시트로 전송됩니다.";
+            submitStatusText.className = "text-xs font-bold mt-1 text-gray-700";
+            submitRecordBtn.disabled = false;
+            submitRecordBtn.textContent = "기록 전송 🚀";
+
+            startBtn.textContent = "다시 도전하기 (Space)";
+            modalOverlay.classList.remove('hidden');
+        }
+
+        // --- 구글 스프레드시트 기록 전송 함수 ---
+        async function sendRecordToSheet() {
+            const studentName = playerNameInput.value.trim();
+            if (!studentName) {
+                submitStatusText.textContent = "⚠️ 학생 이름을 입력해주세요!";
+                submitStatusText.className = "text-xs font-bold mt-1 text-red-600";
+                return;
+            }
+
+            submitRecordBtn.disabled = true;
+            submitRecordBtn.textContent = "전송 중...";
+            submitStatusText.textContent = "시트로 데이터를 전송하고 있습니다...";
+            submitStatusText.className = "text-xs font-bold mt-1 text-blue-600";
+
+            const params = new URLSearchParams({
+                name: studentName,
+                laps: laps,
+                length: snake.length,
+                reason: lastDeathReason,
+                _ts: Date.now()
+            });
+
+            // 1순위: 브라우저 CORS 차단을 100% 우회하는 Image Beacon 전송 방식 (GET)
+            const img = new Image();
+            img.src = `${TARGET_SHEET_URL}?${params.toString()}`;
+
+            // 2순위: POST 전송 병행 (no-cors 폼 전송)
+            try {
+                await fetch(TARGET_SHEET_URL, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    body: params.toString()
+                });
+            } catch (err) {
+                console.log("POST fetch note:", err);
+            }
+
+            // Image Beacon 방식은 CORS 에러 없이 무조건 서버에 도달하므로 성공 피드백 안내
+            setTimeout(() => {
+                submitStatusText.textContent = "✅ 전송 요청 완료! 스프레드시트를 확인해보세요.";
+                submitStatusText.className = "text-xs font-black mt-1 text-green-700";
+                submitRecordBtn.textContent = "전송 완료 👍";
+            }, 600);
+        }
+
+        submitRecordBtn.addEventListener('click', sendRecordToSheet);
+
+        // --- 키보드 큐 입력 처리 (밀림 및 반대방향 자살 방지) ---
+        function pushDirection(x, y) {
+            const lastPlanned = inputQueue.length > 0 ? inputQueue[inputQueue.length - 1] : currentDir;
+            if (lastPlanned.x + x === 0 && lastPlanned.y + y === 0) return; // 180도 역주행 금지
+            if (lastPlanned.x === x && lastPlanned.y === y) return;         // 같은 방향 중복 금지
+
+            if (inputQueue.length < 2) {
+                inputQueue.push({ x, y });
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) {
+                e.preventDefault();
+            }
+
+            if (e.code === 'Space') {
+                if (!isRunning) {
+                    resetGame();
+                } else {
+                    isPaused = !isPaused;
+                    pauseBtn.textContent = isPaused ? "▶ 재개" : "⏸ 일시정지";
+                }
+                return;
+            }
+
+            if (!isRunning || isPaused) return;
+
+            switch (e.code) {
+                case 'ArrowUp':
+                case 'KeyW':
+                    pushDirection(0, -1);
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    pushDirection(0, 1);
+                    break;
+                case 'ArrowLeft':
+                case 'KeyA':
+                    pushDirection(-1, 0);
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    pushDirection(1, 0);
+                    break;
+            }
+        });
+
+        // 가상 D-패드 터치 리스너
+        const bindPad = (id, x, y) => {
+            const btn = document.getElementById(id);
+            const trigger = (e) => {
+                if (e.cancelable) e.preventDefault();
+                e.stopPropagation();
+                if (!isRunning || isPaused) return;
+                pushDirection(x, y);
+            };
+            btn.addEventListener('touchstart', trigger, { passive: false });
+            btn.addEventListener('mousedown', trigger);
+            btn.addEventListener('touchend', (e) => {
+                if (e.cancelable) e.preventDefault();
+            }, { passive: false });
+        };
+        bindPad('btnUp', 0, -1);
+        bindPad('btnDown', 0, 1);
+        bindPad('btnLeft', -1, 0);
+        bindPad('btnRight', 1, 0);
+
+        if (restartHeaderBtn) {
+            const handleReset = (e) => {
+                if (e.cancelable) e.preventDefault();
+                resetGame();
+            };
+            restartHeaderBtn.addEventListener('click', handleReset);
+            restartHeaderBtn.addEventListener('touchend', handleReset, { passive: false });
+        }
+
+        // --- 1 스텝 업데이트 ---
+        function step() {
+            if (inputQueue.length > 0) {
+                currentDir = inputQueue.shift();
+            }
+
+            const head = {
+                x: snake[0].x + currentDir.x,
+                y: snake[0].y + currentDir.y
+            };
+
+            // 1. 벽 충돌 (14x14)
+            if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) {
+                gameOver("혈관벽 들이받음 (벽 충돌)", "혈관 밖으로 튀어나가 출혈이 발생했습니다.");
+                return;
+            }
+
+            // 2. 몸체 충돌
+            for (let i = 0; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    gameOver("피떡 혈전 엉킴 (자기 충돌)", "뱀의 몸이 꼬여 혈관이 막혔습니다.");
+                    return;
+                }
+            }
+
+            // 3. 열매 충돌
+            let hit = null;
+            if (correctTarget && head.x === correctTarget.x && head.y === correctTarget.y) {
+                hit = correctTarget;
+            } else if (wrongTarget && head.x === wrongTarget.x && head.y === wrongTarget.y) {
+                hit = wrongTarget;
+            }
+
+            if (hit) {
+                if (hit.isCorrect) {
+                    // 정답!
+                    sfx.playEat();
+                    currentStepIndex = (currentStepIndex + 1) % CIRCULATION_STEPS.length;
+                    if (currentStepIndex === 0) {
+                        laps++;
+                        sfx.playHeartbeat();
+                    }
+
+                    snake.unshift(head);
+                    spawnTargets();
+                    updateUIState();
+                } else {
+                    // 오답!
+                    gameOver("심정지 / 부정맥 발생!", "혈류 경로를 역행하여 심장이 멈췄습니다!", hit.step);
+                    return;
+                }
+            } else {
+                snake.unshift(head);
+                snake.pop();
+            }
+        }
+
+        // --- 고해상도 그림판 렌더링 ---
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. 깔끔한 모눈종이 배경
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = "#ebebeb";
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i <= GRID_SIZE; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * CELL_SIZE, 0);
+                ctx.lineTo(i * CELL_SIZE, canvas.height);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, i * CELL_SIZE);
+                ctx.lineTo(canvas.width, i * CELL_SIZE);
+                ctx.stroke();
+            }
+
+            // 2. 선명한 벽(외곽선) 가시화
+            ctx.save();
+            ctx.lineWidth = 8;
+            ctx.strokeStyle = "#000000";
+            ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = "#ff0055";
+            ctx.setLineDash([12, 10]);
+            ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+            ctx.restore();
+
+            // 3. 열매(타겟) 그리기
+            if (correctTarget) drawTarget(correctTarget);
+            if (wrongTarget) drawTarget(wrongTarget);
+
+            // 4. 스네이크(적혈구 지렁이) 그리기
+            drawSnake();
+        }
+
+        // 열매 그리기 (효과 제거: 정적이고 가벼운 고속 렌더링)
+        function drawTarget(target) {
+            const x = target.x * CELL_SIZE;
+            const y = target.y * CELL_SIZE;
+            const pad = 3;
+            const isArtery = target.step.isArtery;
+
+            ctx.save();
+            ctx.fillStyle = isArtery ? "#ffebee" : "#ede7f6";
+            ctx.strokeStyle = "#000000";
+            ctx.lineWidth = 3;
+
+            // 정적 네모 박스
+            ctx.fillRect(x + pad, y + pad, CELL_SIZE - pad * 2, CELL_SIZE - pad * 2);
+            ctx.strokeRect(x + pad, y + pad, CELL_SIZE - pad * 2, CELL_SIZE - pad * 2);
+
+            // 큰 텍스트
+            ctx.fillStyle = "#000000";
+            ctx.font = "bold 17px 'Gaegu', 'Gulim', sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            let name = target.step.name;
+            if (name === "온몸의 모세혈관") name = "온몸\n모세";
+            else if (name === "폐의 모세혈관") name = "폐의\n모세";
+            else if (name === "폐동맥") name = "폐\n동맥";
+            else if (name === "폐정맥") name = "폐\n정맥";
+
+            const lines = name.split('\n');
+            if (lines.length > 1) {
+                ctx.fillText(lines[0], x + CELL_SIZE / 2, y + CELL_SIZE / 2 - 9);
+                ctx.fillText(lines[1], x + CELL_SIZE / 2, y + CELL_SIZE / 2 + 10);
+            } else {
+                ctx.fillText(name, x + CELL_SIZE / 2, y + CELL_SIZE / 2);
+            }
+
+            // 구석에 작은 별표 마커
+            ctx.fillStyle = isArtery ? "#ff0000" : "#6200ea";
+            ctx.font = "bold 13px sans-serif";
+            ctx.fillText("★", x + 10, y + 12);
+
+            ctx.restore();
+        }
+
+        // 적혈구 뱀 그리기 (머리에 현재 기관 텍스트 선명하게 노출)
+        function drawSnake() {
+            const currentStep = CIRCULATION_STEPS[currentStepIndex];
+            const isArtery = currentStep.isArtery;
+
+            const bodyColor = isArtery ? "#ff1a40" : "#4a152d";
+            const headColor = isArtery ? "#ff3355" : "#320b1c";
+
+            for (let i = snake.length - 1; i >= 0; i--) {
+                const seg = snake[i];
+                const cx = seg.x * CELL_SIZE + CELL_SIZE / 2;
+                const cy = seg.y * CELL_SIZE + CELL_SIZE / 2;
+                const r = CELL_SIZE / 2 - 3;
+
+                ctx.save();
+
+                if (i === 0) {
+                    // 머리
+                    ctx.fillStyle = headColor;
+                    ctx.strokeStyle = "#000000";
+                    ctx.lineWidth = 3.5;
+
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r + 1, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // 맹한 짝눈
+                    const eyeOffX = currentDir.x * 5;
+                    const eyeOffY = currentDir.y * 5;
+
+                    ctx.fillStyle = "#ffffff";
+                    ctx.beginPath();
+                    ctx.arc(cx - 8 + eyeOffX, cy - 9 + eyeOffY, 7, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.fillStyle = "#000000";
+                    ctx.beginPath();
+                    ctx.arc(cx - 7 + eyeOffX, cy - 9 + eyeOffY, 3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = "#ffffff";
+                    ctx.beginPath();
+                    ctx.arc(cx + 9 + eyeOffX, cy - 8 + eyeOffY, 8.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.fillStyle = "#000000";
+                    ctx.beginPath();
+                    ctx.arc(cx + 9 + eyeOffX, cy - 8 + eyeOffY, 3.5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // 머리 위 명찰 (현재 위치 기관 명칭)
+                    let organName = currentStep.name;
+                    if (organName === "온몸의 모세혈관") organName = "온몸모세";
+                    if (organName === "폐의 모세혈관") organName = "폐모세";
+
+                    ctx.fillStyle = "#ffff00";
+                    ctx.strokeStyle = "#000000";
+                    ctx.lineWidth = 2.5;
+                    const boxW = Math.max(46, organName.length * 15 + 10);
+                    ctx.fillRect(cx - boxW / 2, cy + 6, boxW, 22);
+                    ctx.strokeRect(cx - boxW / 2, cy + 6, boxW, 22);
+
+                    ctx.fillStyle = "#000000";
+                    ctx.font = "bold 15px 'Gaegu', 'Gulim', sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(organName, cx, cy + 17);
+
+                } else {
+                    // 몸통
+                    ctx.fillStyle = bodyColor;
+                    ctx.strokeStyle = "#000000";
+                    ctx.lineWidth = 2.5;
+
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r * 0.88, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // 도넛 음영
+                    ctx.fillStyle = "rgba(0,0,0,0.25)";
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r * 0.38, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        // --- 메인 애니메이션 루프 ---
+        function gameLoop(timestamp) {
+            if (!isRunning) return;
+
+            if (!isPaused && timestamp - lastMoveTime >= moveInterval) {
+                step();
+                lastMoveTime = timestamp;
+            }
+
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 이벤트 리스너 바인딩
+        startBtn.addEventListener('click', resetGame);
+        pauseBtn.addEventListener('click', () => {
+            if (!isRunning) return;
+            isPaused = !isPaused;
+            pauseBtn.textContent = isPaused ? "▶ 재개" : "⏸ 일시정지";
+        });
+
+        soundToggle.addEventListener('click', () => {
+            sfx.init();
+            sfx.enabled = !sfx.enabled;
+            soundToggle.textContent = sfx.enabled ? "🔊 소리 ON" : "🔇 소리 OFF";
+        });
+
+        window.onload = function() {
+            updateUIState();
+            render();
+        };
+    </script>
+</body>
+</html>
